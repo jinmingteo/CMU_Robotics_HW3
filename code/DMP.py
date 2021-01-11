@@ -29,12 +29,12 @@ class DMP_trajectory_generator:
         T=Time[-1]
         PHI= []
         F =[]
-        for k in range(len(Time)):
-            Phi=[math.exp(-0.5*((Time[k]/Time[-1])-c)**2 /self.H) for c in self.C]
+        for k in range(len(Time)): # Num of steps
+            Phi=[math.exp(-0.5*((Time[k]/Time[-1])-c)**2 /self.H) for c in self.C] # Gaussian basis fn
             Phi=Phi/np.sum(Phi)
             PHI.append(Phi)
             
-            f=((ddq[k]*T**2)-K*(q[-1]-q[k])+B*(dq[k]*T))/(q[-1]-q[0])
+            f=((ddq[k]*T**2)-self.K*(q[-1]-q[k])+self.B*(dq[k]*T))/(q[-1]-q[0]) # Shuffling of acceleration eqn
             F.append(f)
 
         # calculate weights via linear regression
@@ -52,17 +52,32 @@ class DMP_trajectory_generator:
         output: dmp trajectory based on starting position and learned weights
         '''
         q0 = np.zeros(5) # starting joint positions
+        cur_q = q0
         q_goal = np.array([0,0,0.7,3,1]) # goal joint positions - feel free to play around with this!
         qd = np.zeros(5)
         qdd = np.zeros(5)
 
         t = 0
+        dmp_trajectory = {'time': [0], 'q': [q0]}
+        
         for i in range(1000):
             t = t + self.dt
             # TODO: Write your code here
-
-        return dmp_trajectory 
-
+            if t <= self.T:
+                Phi=[math.exp(-0.5*((t/self.T)-c)**2 /self.H) for c in self.C] # Gaussian basis fn
+                Phi=Phi/np.sum(Phi)
+                f=np.dot(Phi, self.weights)
+            else:
+                f= np.zeros(5)
+            
+            qdd = (self.K * (q_goal - cur_q) /self.T**2) - (self.B*qd/self.T) + ((q_goal - q0) * f / self.T**2)
+            qd = qd + qdd * self.dt
+            cur_q = cur_q + qd * self.dt
+            
+            dmp_trajectory['time'].append(dmp_trajectory['time'][-1] + self.dt)
+            dmp_trajectory['q'].append(cur_q)
+            
+        return dmp_trajectory
 
 
 if __name__ == "__main__":  
@@ -72,3 +87,20 @@ if __name__ == "__main__":
 
     # TODO: Fit weights to the provided trajectory and use the learned weights to generate a DMP trajectory
     # TODO: Plot your DMP trajectory
+    
+    num_basis_list = [2,4,6,8]
+    fig , axs = plt.subplots(len(num_basis_list))
+    i = 0
+    for num_basis in num_basis_list:
+        DMP_helper = DMP_trajectory_generator(num_basis=num_basis)
+        weights = DMP_helper.learn_weights_from_raw_trajectory(q=q, dq=dq, ddq=ddq)
+        out = DMP_helper.generate_dmp_trajectory()
+        q_out = np.array(out['q'])
+        
+        for z in range(q_out.shape[-1]):
+            axs[i].plot (out['time'], q_out[:,z], label=z)
+        axs[i].legend()
+        axs[i].set_title('num_basis {}'.format(num_basis))
+        i += 1
+
+    plt.show()
