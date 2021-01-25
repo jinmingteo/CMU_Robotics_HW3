@@ -60,7 +60,7 @@ class DMP_trajectory_generator:
         t = 0
         dmp_trajectory = {'time': [0], 'q': [q0]}
         
-        for i in range(1000):
+        for i in range(2000):
             t = t + self.dt
             # TODO: Write your code here
             if t <= self.T:
