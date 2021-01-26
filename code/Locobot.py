@@ -152,6 +152,7 @@ class Locobot:
 
 			# limit angle
 			if rErrAng > limit_angle:
+				# lower grad descent; else cannot find soln
 				rErrAng = limit_angle * np.pi / 180
 			if rErrAng < -limit_angle:
 				rErrAng = -limit_angle * np.pi / 180
