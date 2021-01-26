@@ -49,15 +49,30 @@ def main(args):
 	qInit=[-80.*deg_to_rad, 0., 0., 0., 0.] 
 
 	# target box to grasp (You may only need the dimensions and pose, not the points and axes depending on your implementation)
-	targetpoints, targetaxes = rt.BlockDesc2Points(rt.rpyxyz2H([0,0.,0.],[0.5,0.0,0.05]),[0.04,0.04,0.1])
+	target_coords, target_orientation = [0.5,0.0,0.05], [0,0.,0.]
+	targetpoints, targetaxes = rt.BlockDesc2Points(rt.rpyxyz2H(target_orientation,target_coords),[0.04,0.04,0.1])
 
 	#Generate query for a block object (note random sampling in TGoal)
 	QGoal=[]
 	num_grasp_points = 5 # You can adjust the number of grasp points you want to sample here
+	counter = 0
 	while len(QGoal)<num_grasp_points:
 		# TODO: Sample grasp points here, get their joint configurations, and check if they are valid
-		pass
+		TGoal = np.identity(4)
 
+		# add in target_coords
+		for i in range(len(target_coords)):
+			TGoal[i][3] = target_coords[i]
+
+		# add randomness in x,y,z 
+		TGoal[2][3] += np.random.uniform(-0.05,0.05)
+		#TGoal[np.random.randint(3)][3] += np.random.uniform(-0.1, 0.1)
+	
+		ang, Err = mybot.IterInvKin(qInit, TGoal)
+		
+		if mybot.RobotInLimits(ang) and np.linalg.norm(Err[0:3])< 0.01 and np.linalg.norm(Err[4:6]) < 0.01:
+			if not mybot.DetectCollision(ang, pointsObs, axesObs):
+				QGoal.append(np.array(ang))
 
 	#Create RRT graph to find path to a goal configuration
 	rrtVertices=[]
@@ -74,25 +89,65 @@ def main(args):
 	FoundSolution=False
 
 	while len(rrtVertices)<num_samples and not FoundSolution:
-		print(len(rrtVertices))
-		# Use your sampler and collision detection from homework 2
-		qRand=mybot.SampleRobotConfig()
-
-		# NOTE: Remember to add a goal bias when you sample
-
 		# TODO: Implement your RRT planner here	
+		# Use your sampler and collision detection from homework 2
+		# NOTE: Remember to add a goal bias when you sample
+		qRand=mybot.SampleRobotConfig() if np.random.uniform() >= 0.05 else QGoal[np.random.randint(len(QGoal))]
+		
+		idNear = FindNearest(rrtVertices, qRand)
+		qNear = rrtVertices[idNear]
 
+		if np.linalg.norm(np.array(qRand) - np.array(qNear)) > thresh:
+			qConnect = np.array(qNear) + thresh*(np.array(qRand)- np.array(qNear))/np.linalg.norm(np.array(qRand)-np.array(qNear))
+		else:
+			qConnect = qRand
+		
+		if not mybot.DetectCollisionEdge(qConnect, qNear, pointsObs, axesObs):
+			rrtVertices.append(qConnect)
+			rrtEdges.append(idNear)
+
+		
+		for qGoal in QGoal:
+			idNear = FindNearest(rrtVertices, qGoal)
+			if np.linalg.norm(qGoal - rrtVertices[idNear]) < 0.025:
+				rrtVertices.append(qGoal)
+				rrtEdges.append(idNear)
+				FoundSolution = True
+				break
 		
 	if FoundSolution:
 
 		# Extract path - TODO: add your path from your RRT after a solution has been found
+		# Last in First Out
 		plan=[]
+		plan.insert(0, np.array(rrtVertices[-1]))
+		edge = rrtEdges[-1]
+		while edge != 0:
+			idNear = FindNearest(rrtVertices, rrtVertices[edge])
+			plan.insert(0, np.array(rrtVertices[idNear]))
+			edge = rrtEdges[idNear]
+		plan.insert(0, np.array(qInit))
 
+		pointsObs.append(targetpoints), axesObs.append(targetaxes)
 
 		# Path shortening - TODO: implement path shortening in the for loop below
 		num_iterations = 150 # change this hyperparameter as needed
 		for i in range(num_iterations):
-			pass
+			anchorA = np.random.randint(len(plan)-2)
+			anchorB = np.random.randint(anchorA+1, len(plan)-1)
+
+			shiftA = np.random.uniform(0, 1)
+			shiftB = np.random.uniform(0, 1)
+
+			candidateA = (1-shiftA) * plan[anchorA] + shiftA * plan[anchorA + 1]
+			candidateB = (1-shiftB) * plan[anchorB] + shiftB * plan[anchorB + 1]
+
+			if not mybot.DetectCollisionEdge(candidateA, candidateB, pointsObs, axesObs):
+				while anchorB - anchorA:
+					plan.pop(anchorB)
+					anchorB=anchorB-1
+				plan.insert(anchorA+1, candidateB)
+				plan.insert(anchorA+1, candidateA)
 
 		if args.use_pyrobot:
 			# Vizualize your plan in PyRobot

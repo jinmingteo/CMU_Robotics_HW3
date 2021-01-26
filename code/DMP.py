@@ -42,7 +42,7 @@ class DMP_trajectory_generator:
 
         self.weights = w
 
-        return self.weights 
+        return self.weights
 
     def generate_dmp_trajectory(self):
         '''
