@@ -55,7 +55,7 @@ def main(args):
 	#Generate query for a block object (note random sampling in TGoal)
 	QGoal=[]
 	num_grasp_points = 5 # You can adjust the number of grasp points you want to sample here
-	counter = 0
+
 	while len(QGoal)<num_grasp_points:
 		# TODO: Sample grasp points here, get their joint configurations, and check if they are valid
 		TGoal = np.identity(4)
@@ -70,7 +70,7 @@ def main(args):
 	
 		ang, Err = mybot.IterInvKin(qInit, TGoal)
 		
-		if mybot.RobotInLimits(ang) and np.linalg.norm(Err[0:3])< 0.01 and np.linalg.norm(Err[4:6]) < 0.01:
+		if mybot.RobotInLimits(ang) and np.linalg.norm(Err[0:3])< 0.005 and np.linalg.norm(Err[4:6]) < 0.005:
 			if not mybot.DetectCollision(ang, pointsObs, axesObs):
 				QGoal.append(np.array(ang))
 
@@ -131,7 +131,7 @@ def main(args):
 		pointsObs.append(targetpoints), axesObs.append(targetaxes)
 
 		# Path shortening - TODO: implement path shortening in the for loop below
-		num_iterations = 150 # change this hyperparameter as needed
+		num_iterations = 1500 # change this hyperparameter as needed
 		for i in range(num_iterations):
 			anchorA = np.random.randint(len(plan)-2)
 			anchorB = np.random.randint(anchorA+1, len(plan)-1)
