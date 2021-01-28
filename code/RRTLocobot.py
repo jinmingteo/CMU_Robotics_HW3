@@ -58,15 +58,7 @@ def main(args):
 
 	while len(QGoal)<num_grasp_points:
 		# TODO: Sample grasp points here, get their joint configurations, and check if they are valid
-		TGoal = np.identity(4)
-
-		# add in target_coords
-		for i in range(len(target_coords)):
-			TGoal[i][3] = target_coords[i]
-
-		# add randomness in x,y,z 
-		TGoal[2][3] += np.random.uniform(-0.05,0.05)
-		#TGoal[np.random.randint(3)][3] += np.random.uniform(-0.1, 0.1)
+		TGoal = rt.rpyxyz2H(target_orientation, [0.5, 0.0, 0.05+np.random.uniform(-0.05, 0.05)])
 	
 		ang, Err = mybot.IterInvKin(qInit, TGoal)
 		
@@ -83,7 +75,7 @@ def main(args):
 	rrtEdges.append(0)
 
 	# Change these two hyperparameters as needed
-	thresh=1.5 
+	thresh=1.5
 	num_samples = 3000
 
 	FoundSolution=False
